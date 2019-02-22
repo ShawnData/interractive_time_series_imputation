@@ -1,0 +1,317 @@
+---
+title: "R Notebook"
+output: html_notebook
+---
+
+This is an [R Markdown](http://rmarkdown.rstudio.com) Notebook. When you execute code within the notebook, the results appear beneath the code. 
+
+Try executing this chunk by clicking the *Run* button within the chunk or by placing your cursor inside it and pressing *Ctrl+Shift+Enter*. 
+
+```{r}
+# load library
+# general visualisation
+library('ggplot2') # visualisation
+library('scales') # visualisation
+library('grid') # visualisation
+library('gridExtra') # visualisation
+library('RColorBrewer') # visualisation
+
+# general data manipulation
+library('dplyr') # data manipulation
+library('data.table') # data manipulation
+library('tibble') # data wrangling
+library('tidyr') # data wrangling
+library('imputeTS') #missing data
+
+# Date plus forecast
+library('lubridate') # date and time
+library('timeDate') # date and time
+library('forecast') # forecast
+```
+
+
+```{r}
+# load data
+raw_data <- as.tibble(fread(file.choose()))
+summary(raw_data)
+```
+
+```{r}
+# convert chosen column to time series and plot the data
+
+# choose the column
+chooseColumn <- function() {
+  
+  #Create a prompt for user to enter what year of data to import
+  ts_col <- readline(prompt = "Please enter the column name: ")
+  ts_col <- as.character(ts_col)
+  
+ }
+
+if(interactive()) ts_col <- chooseColumn()
+  
+ #Error control
+while(!(ts_col %in% names(raw_data)) || is.na(ts_col)) {
+  
+  print(paste0("column name incorrect"))
+  ts_col <- chooseColumn()
+}
+
+# sort a column
+
+ sort_col <- readline(prompt = "please choose a column to sort or enter NA: ")
+ sort_asc <- readline(prompt = "ascending order?[Yes/No]: ")
+ asc <- sort_asc == "Yes"
+ 
+ 
+if(sort_col %in% names(raw_data)){
+
+ raw_data <- raw_data[with(raw_data, order(raw_data[,sort_col][[1]], decreasing = asc)),]
+
+}else{
+  
+ print("sorting column does not exist")  
+  
+} 
+ 
+ choose_freq <-readline(prompt = "choose time series frequency: ")
+ freq <- as.numeric(choose_freq)
+ print(paste("Time series frequency:", freq))
+ 
+ ts_df <- ts(raw_data[, ts_col][[1]], start = 1, frequency = freq)
+ 
+ print(paste("Plotted column:", ts_col, "|", "sorted column:", sort_col, "|", "ascending order:", sort_asc))
+ plot.ts(ts_df)
+ 
+ 
+ 
+```
+
+
+
+```{r}
+# remove outliers
+
+clean_outliers <- readline(prompt = "Automatically clean outliers?[Yes/No]: ")
+print(paste("Automatically clean outliers:", clean_outliers))
+  
+if(clean_outliers == "Yes"){
+  
+  ts_cleaned <- ts_df
+  ts_cleaned[tsoutliers(ts_df)$index] = NA
+
+}else{
+  
+  ts_cleaned <- ts_df
+  
+}  
+  
+
+par(mfrow=c(1,2))
+plot.ts(ts_df)
+plot.ts(ts_cleaned)
+
+```
+
+
+
+
+```{r}
+# select the time series to impute
+
+choose_TS <- readline(prompt = "Press 1 for original time series or press 2 for outlier removed time series: ")
+
+if(choose_TS == "1"){
+  
+  ts_chosen <- ts_df
+  print("original time series was chosen")
+  rm(choose_TS)
+
+}else if(choose_TS == "2"){
+    
+  print("outlier removed  time series was chosen")  
+  ts_chosen <- ts_cleaned
+  rm(choose_TS)
+  
+}else{
+  
+  print("incorrect input")
+  choose_TS <- readline(prompt = "Press 1 for original time series or press 2 for outliner removed time series: ")
+  
+}
+
+  
+
+
+```
+
+
+
+
+```{r}
+# visualize missing values 
+plotNA.distribution(ts_chosen)
+plotNA.distributionBar(ts_chosen)
+plotNA.gapsize(ts_chosen)
+
+```
+
+
+```{r}
+
+# visualize imputed values
+
+
+try(imputed_ts1 <- na.interpolation(ts_chosen, option = "linear"))
+plotNA.imputations(ts_chosen, imputed_ts, legend = T, main = paste("Impute Method1: Interpolation_linear "))
+
+try(imputed_ts2 <- na.interpolation(ts_chosen, option = "spline"))
+plotNA.imputations(ts_chosen, imputed_ts2, legend = T, main = paste("Impute Method2: Interpolation_spline"))
+
+try(imputed_ts3 <- na.interpolation(ts_chosen, option = "stine"))
+plotNA.imputations(ts_chosen, imputed_ts3, legend = T, main = paste("Impute Method3: Interpolation_stine"))
+
+try(imputed_ts4 <- na.kalman(ts_chosen, model = "auto.arima"))
+plotNA.imputations(ts_chosen, imputed_ts4, legend = T, main = paste("Impute Method4: Kalman_auto.arima"))
+
+try(imputed_ts5 <- na.kalman(ts_chosen, model = "StructTS"))
+plotNA.imputations(ts_chosen, imputed_ts5, legend = T, main = paste("Impute Method5: Kalman_StructTS"))
+
+try(imputed_ts6 <- na.locf(ts_chosen, option = "locf"))
+plotNA.imputations(ts_chosen, imputed_ts6, legend = T, main = paste("Impute Method6: Last Observation Carried Forward"))
+
+try(imputed_ts7 <- na.locf(ts_chosen, option = "nocb"))
+plotNA.imputations(ts_chosen, imputed_ts7, legend = T, main = paste("Impute Method7: Next Observation Carried Backward"))
+
+try(imputed_ts8 <- na.ma(ts_chosen, weighting = "simple"))
+plotNA.imputations(ts_chosen, imputed_ts8, legend = T, main = paste("Impute Method8: Simple Moving Average"))
+
+try(imputed_ts9 <- na.ma(ts_chosen, weighting = "linear"))
+plotNA.imputations(ts_chosen, imputed_ts9, legend = T, main = paste("Impute Method9: Linear Weighted Moving Average"))
+
+try(imputed_ts10 <- na.ma(ts_chosen, weighting = "exponential"))
+plotNA.imputations(ts_chosen, imputed_ts10, legend = T, main = paste("Impute Method10: Exponential Weighted Moving Average"))
+
+try(imputed_ts11 <- na.mean(ts_chosen, option = "mean"))
+plotNA.imputations(ts_chosen, imputed_ts11, legend = T, main = paste("Impute Method11: Mean"))
+
+try(imputed_ts12 <- na.mean(ts_chosen, option = "median"))
+plotNA.imputations(ts_chosen, imputed_ts12, legend = T, main = paste("Impute Method12: Median"))
+
+try(imputed_ts13 <- na.mean(ts_chosen, option = "mode"))
+plotNA.imputations(ts_chosen, imputed_ts13, legend = T, main = paste("Impute Method13: Mode"))
+
+try(imputed_ts14 <- na.random(ts_chosen))
+plotNA.imputations(ts_chosen, imputed_ts14, legend = T, main = paste("Impute Method14: Random Sample(default interval)"))
+
+try(imputed_ts15 <- na.seadec(ts_chosen))
+plotNA.imputations(ts_chosen, imputed_ts15, legend = T, main = paste("Impute Method11: Seasonally Decomposed"))
+
+try(imputed_ts16 <- na.seasplit(ts_chosen))
+plotNA.imputations(ts_chosen, imputed_ts16, legend = T, main = paste("Impute Method11: Seasonally Splitted"))
+
+try(imputed_ts17 <- na.remove(ts_chosen))
+plotNA.imputations(ts_chosen, imputed_ts17, legend = T, main = paste("Impute Method11: Remove NA"))
+
+
+list_of_imputedTS <- list(imputed_ts1,imputed_ts2,imputed_ts3,imputed_ts4,imputed_ts5,
+                          imputed_ts6,imputed_ts7,imputed_ts8,imputed_ts9,imputed_ts10,
+                          imputed_ts11,imputed_ts12,imputed_ts13,imputed_ts14,imputed_ts15,
+                          imputed_ts16,imputed_ts17) 
+
+```
+
+
+```{r}
+# choose time series to proceed
+choose_TS <- readline(prompt = "Press 1 for original time series | press 2 for outlies removed time series | press 3 for imputed time series: ")
+
+choose_imputedTS <- readline(prompt = "which imputation method to choose?[1-17] or press any key to skip: ")
+pick <- as.numeric(choose_imputedTS)
+
+if(choose_TS == "1"){
+  
+  ts_chosen <- ts_df
+  print("original time series was chosen")
+  rm(choose_TS)
+
+}else if(choose_TS == "2"){
+  
+  print("outlier removed  time series was chosen")  
+  ts_chosen <- ts_cleaned
+  rm(choose_TS)
+  
+}else if(choose_TS == "3"){
+  
+     ts_chosen <- list_of_imputedTS[[pick]]
+     print(paste("imputation method", pick, "was chosen"))
+     rm(choose_TS)
+  
+}else{
+  
+  print("incorrect input")
+  rm(choose_TS)
+
+}
+
+```
+
+
+
+```{r}
+# Time series decomposition 
+
+decompose_ts_add <- decompose(ts_chosen, type = "additive")
+decompose_ts_mutl <- decompose(ts_chosen, type = "multiplicative")
+stl_ts <- stl(ts_chosen, s.window = "periodic")
+
+plot(decompose_ts_add);plot(decompose_ts_mutl);plot(stl_ts)
+
+```
+
+
+
+```{r}
+# model fitting
+
+
+
+
+
+
+
+
+
+```
+
+
+
+```{r}
+raw_data$cleanTS <- ts_chosen
+write.csv(raw_data, "df_smoothed.csv", row.names = FALSE)
+```
+
+
+Add a new chunk by clicking the *Insert Chunk* button on the toolbar or by pressing *Ctrl+Alt+I*.
+
+When you save the notebook, an HTML file containing the code and output will be saved alongside it (click the *Preview* button or press *Ctrl+Shift+K* to preview the HTML file).
+
+The preview shows you a rendered HTML copy of the contents of the editor. Consequently, unlike *Knit*, *Preview* does not run any R code chunks. Instead, the output of the chunk when it was last run in the editor is displayed.
+
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
